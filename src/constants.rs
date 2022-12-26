@@ -1,0 +1,10 @@
+pub const CMD_BASE: u32 = 0x55AA00;
+pub const CMD_INIT: u32 = CMD_BASE + 1;
+pub const CMD_PREPARE: u32 = CMD_BASE + 5;
+pub const CMD_REBOOT: u32 = CMD_BASE + 7;
+pub const RESPONSE_LEN: usize = 0x40; // 64
+pub const MAX_FIRMWARE_SN32F260: usize = 30 * 1024; // 30K
+pub const MAX_FIRMWARE_SN32F240: usize = 64 * 1024; // 64K Also 240B
+pub const MAX_FIRMWARE: usize = MAX_FIRMWARE_SN32F260;
+pub const QMK_OFFSET_DEFAULT: u32 = 0x200;
+pub const EXPECTED_STATUS: u32 = 0xFAFAFAFA;
