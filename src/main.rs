@@ -8,50 +8,59 @@ pub mod traits;
 use cli::Command;
 pub use error::Result;
 
-use crate::devices::Normal;
+use crate::flash::FlashingOptions;
 
 use self::cli::FirmwareCommand;
 use self::devices::{Bootloader, Devices};
+use self::error::{Error, ErrorKind};
 use self::firmware::{Firmware, UnsafeFirmware};
 
 fn main() -> Result<(), main_error::MainError> {
     let args = <cli::Args as clap::Parser>::parse();
     // dbg!(&args);
     match args.command {
-        Command::List { verbose: v } => {
-            let n_devices = devices::Devices::<devices::Normal>::get();
-            let b_devices = devices::Devices::<devices::Bootloader>::get();
-            // if v {
-            //     println!("Normal devices: \n{n_devices:#?}");
-            //     println!("Bootloader devices: \n{b_devices:#?}");
-            // } else {
-            //     println!("Normal devices: \n{n_devices}");
-            //     println!("Bootloader devices: \n{b_devices}");
-            // }
-            match (n_devices, b_devices, v) {
-                (Ok(n), Ok(b), true) => {
-                    println!("Normal devices: \n{n:#?}");
-                    println!("Bootloader devices: \n{b:#?}");
+        Command::List {
+            verbose,
+            bootloader,
+            normal,
+            all,
+        } => {
+            if all {
+                if let Ok(n_devices) = devices::Devices::<devices::Normal>::get() {
+                    if !n_devices.is_empty() {
+                        println!("Normal devices:");
+                        n_devices.print(verbose);
+                    }
+                };
+                if let Ok(b_devices) = devices::Devices::<devices::Bootloader>::get() {
+                    if !b_devices.is_empty() {
+                        println!("Bootloader devices:");
+                        b_devices.print(verbose);
+                    }
                 }
-                (Ok(n), Ok(b), false) => {
-                    println!("Normal devices: \n{n}");
-                    println!("Bootloader devices: \n{b}");
+                return Err(ErrorKind::NoDevicesFound.into());
+            } else if normal {
+                if let Ok(n_devices) = devices::Devices::<devices::Normal>::get() {
+                    n_devices.print(verbose);
                 }
-                (Ok(n), Err(_), true) => {
-                    println!("Normal devices: \n{n:#?}");
+            } else if bootloader {
+                if let Ok(b_devices) = devices::Devices::<devices::Bootloader>::get() {
+                    b_devices.print(verbose);
                 }
-                (Ok(n), Err(_), false) => {
-                    println!("Normal devices: \n{n}");
+            } else {
+                if let Ok(n_devices) = devices::Devices::<devices::Normal>::get() {
+                    if !n_devices.is_empty() {
+                        println!("Normal devices:");
+                        n_devices.print(verbose);
+                    }
+                };
+                if let Ok(b_devices) = devices::Devices::<devices::Bootloader>::get() {
+                    if !b_devices.is_empty() {
+                        println!("Bootloader devices:");
+                        b_devices.print(verbose);
+                    }
                 }
-                (Err(_), Ok(b), true) => {
-                    println!("Bootloader devices: \n{b:#?}");
-                }
-                (Err(_), Ok(b), false) => {
-                    println!("Bootloader devices: \n{b}");
-                }
-                (Err(e), Err(_), _) => {
-                    return Err(e.into());
-                }
+                return Err(ErrorKind::NoDevicesFound.into());
             }
         }
         Command::Firmware { command } => match command {
@@ -60,16 +69,23 @@ fn main() -> Result<(), main_error::MainError> {
                 println!("The Firmware is valid");
             }
         },
-        Command::Flash { firmware, keyboard } => {
+        Command::Flash {
+            firmware,
+            keyboard,
+            offset,
+        } => {
             let devices = Devices::<Bootloader>::get()?;
             let d = devices.decide::<String>(keyboard)?;
             println!("device: {:#?}", d);
 
-            let _firmware =
+            let firmware =
                 Firmware::try_from(UnsafeFirmware::from(std::fs::File::open(firmware)?))?;
 
-            let keyboard = devices::Keyboard::<Bootloader>::connect(d);
-            todo!();
+            let mut keyboard = devices::Keyboard::<Bootloader>::connect(d)?;
+
+            let mut options = FlashingOptions::try_from(d)?;
+            options.with_offset(offset);
+            keyboard.flash(firmware, options)?;
         }
         Command::Reboot { keyboard } => {
             let devices = Devices::<Bootloader>::get()?;

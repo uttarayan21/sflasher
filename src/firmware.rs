@@ -1,4 +1,4 @@
-use std::io::{Read, SeekFrom};
+use std::io::SeekFrom;
 
 use crate::constants::MAX_FIRMWARE;
 use crate::error::ErrorKind;

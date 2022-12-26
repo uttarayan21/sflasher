@@ -124,15 +124,22 @@ pub enum Bootloader {}
 impl Bootloader {}
 pub trait Mode {
     fn devices() -> &'static HashMap<(u16, u16), &'static str>;
+    fn mode() -> &'static str;
 }
 impl Mode for Bootloader {
     fn devices() -> &'static HashMap<(u16, u16), &'static str> {
         &BOOTLOADER_DEVICES
     }
+    fn mode() -> &'static str {
+        "bootloader"
+    }
 }
 impl Mode for Normal {
     fn devices() -> &'static HashMap<(u16, u16), &'static str> {
         &NORMAL_DEVICES
+    }
+    fn mode() -> &'static str {
+        "normal"
     }
 }
 
@@ -140,6 +147,16 @@ impl Mode for Normal {
 pub struct Devices<T: Mode> {
     pub devices: Vec<hidapi::DeviceInfo>,
     __marker: std::marker::PhantomData<T>,
+}
+
+impl<T: Mode> Devices<T> {
+    pub fn print(&self, verbose: bool) {
+        if verbose {
+            println!("{:?}", self);
+        } else {
+            println!("{}", self);
+        }
+    }
 }
 
 impl<T: Mode> Debug for Devices<T> {
@@ -187,6 +204,12 @@ impl<T: Mode> Display for Devices<T> {
 }
 
 impl<T: Mode> Devices<T> {
+    pub fn len(&self) -> usize {
+        self.devices.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.devices.is_empty()
+    }
     pub fn get() -> Result<Self> {
         let api = HidApi::new()?;
         Self::get_with_api(&api)
@@ -202,8 +225,8 @@ impl<T: Mode> Devices<T> {
                 })
                 .unique_by(|d| (d.vendor_id(), d.product_id()))
                 .cloned()
-                .collect::<Vec<DeviceInfo>>()
-                .empty_or_else(|| ErrorKind::NoDevicesFound.into())?,
+                .collect::<Vec<DeviceInfo>>(),
+            // .empty_or_else(|| ErrorKind::NoDevicesFound.into())?,
             __marker: std::marker::PhantomData,
         })
     }
@@ -251,7 +274,6 @@ impl<T: Mode> Devices<T> {
 
 #[derive(Debug)]
 pub struct Keyboard<Mode> {
-    name: &'static str,
     device: HidDevice,
     init: bool,
     __marker: std::marker::PhantomData<Mode>,
@@ -262,12 +284,12 @@ impl<Mode: self::Mode> Keyboard<Mode> {
         // NOTE: Maybe somehow reuse the HidApi created on the Devices::get() call
         let hidapi = HidApi::new()?;
         let device = info.open_device(&hidapi)?;
-        let name = Mode::devices()
-            .get(&(info.vendor_id(), info.product_id()))
-            .cloned()
-            .unwrap_or("Unknown");
+        // let name = Mode::devices()
+        //     .get(&(info.vendor_id(), info.product_id()))
+        //     .cloned()
+        //     .unwrap_or("Unknown");
         Ok(Self {
-            name,
+            // name,
             device,
             init: false,
             __marker: std::marker::PhantomData,
@@ -349,7 +371,7 @@ impl<Mode: self::Mode> Keyboard<Mode> {
 }
 
 impl Keyboard<Bootloader> {
-    fn flash<T: SizedBuffer>(
+    pub fn flash<T: SizedBuffer>(
         &mut self,
         firmawre: Firmware<T>,
         options: FlashingOptions,
@@ -358,7 +380,7 @@ impl Keyboard<Bootloader> {
         self.write(
             [
                 CMD_PREPARE.to_le_bytes(),
-                options.offset.to_le_bytes(),
+                options.offset().to_le_bytes(),
                 (firmawre.len()? as u32).to_le_bytes(),
             ]
             .into_iter()
