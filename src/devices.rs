@@ -311,10 +311,12 @@ impl<Mode: self::Mode> Keyboard<Mode> {
         Ok(())
     }
 
+    /// Reboot the keyboard from bootloder mode
     pub fn reboot(&mut self) -> Result<()> {
-        // dbg!(self.device.write(&CMD_REBOOT.to_le_bytes()))?;
-        self.init()?;
-        dbg!(self.write(CMD_REBOOT.to_le_bytes(), None::<&[u8]>))?;
+        // Don't use self.device.write
+        // or self.write
+        // or don't do self.init()?;
+        self.set_feature(CMD_REBOOT.to_le_bytes())?;
         Ok(())
     }
 

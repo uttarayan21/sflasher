@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.0.30", features = ["derive"] }
 hex = "0.4.3"
-hidapi = { version = "2.0.2", features = ["macos-shared-device"], default-features = false }
+hidapi = { version = "2.0.2", features = ["macos-shared-device"] }
 itertools = "0.10.5"
 main_error = "0.1.2"
 once_cell = "1.16.0"

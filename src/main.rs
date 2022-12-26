@@ -72,9 +72,9 @@ fn main() -> Result<(), main_error::MainError> {
             todo!();
         }
         Command::Reboot { keyboard } => {
-            let devices = Devices::<Normal>::get()?;
+            let devices = Devices::<Bootloader>::get()?;
             let d = devices.decide::<String>(keyboard)?;
-            let mut keyboard = devices::Keyboard::<Normal>::connect(d)?;
+            let mut keyboard = devices::Keyboard::<Bootloader>::connect(d)?;
             keyboard.reboot()?;
         }
     }
