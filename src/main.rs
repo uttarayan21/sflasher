@@ -12,7 +12,7 @@ use crate::flash::FlashingOptions;
 
 use self::cli::FirmwareCommand;
 use self::devices::{Bootloader, Devices};
-use self::error::{Error, ErrorKind};
+use self::error::ErrorKind;
 use self::firmware::{Firmware, UnsafeFirmware};
 
 fn main() -> Result<(), main_error::MainError> {
@@ -87,7 +87,10 @@ fn main() -> Result<(), main_error::MainError> {
             options.with_offset(offset);
             keyboard.flash(firmware, options)?;
         }
-        Command::Reboot { keyboard } => {
+        Command::Reboot {
+            keyboard,
+            bootloader: _,
+        } => {
             let devices = Devices::<Bootloader>::get()?;
             let d = devices.decide::<String>(keyboard)?;
             let mut keyboard = devices::Keyboard::<Bootloader>::connect(d)?;

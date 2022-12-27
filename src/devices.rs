@@ -3,7 +3,7 @@ use crate::error::ErrorKind;
 use crate::firmware::Firmware;
 use crate::flash::FlashingOptions;
 use crate::traits::buffer::SizedBuffer;
-use crate::traits::empty::EmptyOrElse;
+// use crate::traits::empty::EmptyOrElse;
 use crate::traits::hex::FromHex;
 use crate::Result;
 use hidapi::{DeviceInfo, HidApi, HidDevice};
@@ -11,7 +11,7 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
-use std::io::{BufReader, Read};
+// use std::io::{BufReader, Read};
 
 macro_rules! devices {
     ($map: expr, $(($vid:literal, $pid:literal): $name:expr),* $(,)?) => {
@@ -326,19 +326,10 @@ impl<Mode: self::Mode> Keyboard<Mode> {
         let resp = self.get_feature()?;
         let (cmd, _) = resp.split_at(4);
 
-        if u32::from_le_bytes(dbg!(cmd).try_into()?) != CMD_INIT {
+        if u32::from_le_bytes(cmd.try_into()?) != CMD_INIT {
             return Err(ErrorKind::FailedToInitialize.into());
         }
         self.init = true;
-        Ok(())
-    }
-
-    /// Reboot the keyboard from bootloder mode
-    pub fn reboot(&mut self) -> Result<()> {
-        // Don't use self.device.write
-        // or self.write
-        // or don't do self.init()?;
-        self.set_feature(CMD_REBOOT.to_le_bytes())?;
         Ok(())
     }
 
@@ -352,18 +343,24 @@ impl<Mode: self::Mode> Keyboard<Mode> {
         self.set_feature(command)?;
         let resp = self.get_feature()?;
         if let Some(status) = status {
-            let (cmd, rest) = resp.split_at(command.len());
-            if cmd != command {
-                return Err(ErrorKind::FailedToWrite.into());
+            let (cmd, rest) = resp.split_at(4);
+            if cmd != &command[..4] {
+                return Err(
+                    ErrorKind::FailedToWrite(crate::error::WriteFailure::InvalidCommand).into(),
+                );
             }
             let (s, _) = rest.split_at(status.len());
             if s != status {
-                return Err(ErrorKind::FailedToWrite.into());
+                return Err(
+                    ErrorKind::FailedToWrite(crate::error::WriteFailure::InvalidStatus).into(),
+                );
             }
         } else {
             let (cmd, _) = resp.split_at(command.len());
             if cmd != command {
-                return Err(ErrorKind::FailedToWrite.into());
+                return Err(
+                    ErrorKind::FailedToWrite(crate::error::WriteFailure::InvalidCommand).into(),
+                );
             }
         }
         Ok(())
@@ -373,7 +370,7 @@ impl<Mode: self::Mode> Keyboard<Mode> {
 impl Keyboard<Bootloader> {
     pub fn flash<T: SizedBuffer>(
         &mut self,
-        firmawre: Firmware<T>,
+        mut firmawre: Firmware<T>,
         options: FlashingOptions,
     ) -> Result<()> {
         self.init()?;
@@ -381,7 +378,7 @@ impl Keyboard<Bootloader> {
             [
                 CMD_PREPARE.to_le_bytes(),
                 options.offset().to_le_bytes(),
-                (firmawre.len()? as u32).to_le_bytes(),
+                (firmawre.len()? as u32 / 64).to_le_bytes(),
             ]
             .into_iter()
             .flatten()
@@ -389,16 +386,55 @@ impl Keyboard<Bootloader> {
             Some(EXPECTED_STATUS.to_le_bytes()),
         )?;
 
-        let firmware = BufReader::new(firmawre.into_inner());
+        // let firmware = BufReader::new(firmawre.into_inner());
         // let mut buf = [0u8; 64];
-        for bytes in &firmware.bytes().chunks(64) {
-            let bytes = bytes.collect::<Result<Vec<u8>, std::io::Error>>()?;
-            // let mut buf = [0u8; 64];
-            // buf[..bytes.len()].copy_from_slice(&bytes);
-            self.set_feature(&bytes)?;
+        // for bytes in &firmware.bytes().chunks(64) {
+        //     let bytes = bytes.collect::<Result<Vec<u8>, std::io::Error>>()?;
+        //     let mut buf = [0u8; 64];
+        //     buf[..bytes.len()].copy_from_slice(&bytes);
+        //     self.set_feature(buf)?;
+        // }
+        // Just read the whole file into memory and then do chunk it
+        let size = (firmawre.len()? as f64 / 64f64).ceil() as usize * 64;
+        let mut buffer = Vec::with_capacity(size);
+        firmawre.inner.read_to_end(&mut buffer)?;
+        for bytes in buffer.chunks(64) {
+            let mut buf = [0u8; 64];
+            buf[..bytes.len()].copy_from_slice(bytes);
+            self.set_feature(buf)?;
         }
+
         self.reboot()?;
 
+        Ok(())
+    }
+    /// Reboot the keyboard from bootloder mode
+    pub fn reboot(&mut self) -> Result<()> {
+        // Don't use self.device.write
+        // or self.write
+        // or don't do self.init()?;
+        self.set_feature(CMD_REBOOT.to_le_bytes())?;
+        Ok(())
+    }
+}
+
+// def cmd_reboot_evision(dev, progress_cb=console_progress, complete_cb=console_complete, error_cb=console_error):
+//     progress_cb("Reboot to bootloader", 0)
+//     hid_set_feature(dev, struct.pack("<II", 0x5AA555AA, 0xCC3300FF))
+//     progress_cb("Reboot to bootloader", 0.5)
+//     time.sleep(5)
+//     complete_cb()
+
+// def cmd_reboot_hfd(dev, progress_cb=console_progress, complete_cb=console_complete, error_cb=console_error):
+//     progress_cb("Reboot to bootloader", 0)
+//     hid_set_feature(dev, struct.pack("<II", 0x5A8942AA, 0xCC6271FF))
+//     progress_cb("Reboot to bootloader", 0.5)
+//     time.sleep(5)
+//     complete_cb()
+
+impl Keyboard<Normal> {
+    pub fn reboot(&mut self, bootloader: crate::cli::Bootloader) -> Result<()> {
+        self.set_feature(bootloader.commands())?;
         Ok(())
     }
 }

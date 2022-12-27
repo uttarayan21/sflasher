@@ -51,10 +51,16 @@ pub enum ErrorKind {
     InvalidResponse,
     #[error("Failed to initialize")]
     FailedToInitialize,
-    #[error("Failed to write")]
-    FailedToWrite,
+    #[error("Failed to write {0:?}")]
+    FailedToWrite(WriteFailure),
     #[error("Invalid Device")]
     InvalidDevice,
+}
+
+#[derive(Debug)]
+pub enum WriteFailure {
+    InvalidCommand,
+    InvalidStatus,
 }
 
 impl<E: Into<ErrorKind>> From<E> for Error {
