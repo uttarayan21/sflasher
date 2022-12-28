@@ -64,7 +64,7 @@ pub enum FirmwareCommand {
 #[derive(Clone, Debug, Subcommand)]
 pub enum Bootloader {
     EVision,
-    HFD,
+    Hfd,
 }
 
 impl Bootloader {
@@ -75,7 +75,7 @@ impl Bootloader {
                 res[..4].copy_from_slice(&0x5AA555AA_u32.to_le_bytes());
                 res[4..].copy_from_slice(&0xCC3300FF_u32.to_le_bytes());
             }
-            Bootloader::HFD => {
+            Bootloader::Hfd => {
                 res[..4].copy_from_slice(&0x5A8942AA_u32.to_le_bytes());
                 res[4..].copy_from_slice(&0xCC6271FF_u32.to_le_bytes());
             }

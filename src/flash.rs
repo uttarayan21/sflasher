@@ -21,7 +21,6 @@ impl FlashingOptions {
     }
 }
 
-
 impl TryFrom<&DeviceInfo> for FlashingOptions {
     type Error = Error;
 
