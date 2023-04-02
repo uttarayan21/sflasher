@@ -1,0 +1,60 @@
+on: [push, pull_request]
+
+name: CI
+
+jobs:
+  checks:
+    name: ${{ matrix.name }} (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-apple-darwin
+          - x86_64-pc-windows-msvc
+
+        include:
+          - os: ubuntu-latest
+            name: Linux
+            target: x86_64-unknown-linux-gnu
+
+          - os: macos-latest
+            name: macOS
+            target: x86_64-apple-darwin
+
+          - os: windows-latest
+            name: Windows
+            target: x86_64-pc-windows-msvc
+
+
+    steps:  
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Bootstrap
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+          target: ${{ matrix.target }}
+
+      - name: Formatting
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+        continue-on-error: false
+
+      - name: Lints
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --target=${{ matrix.target }} -- --no-deps -D warnings
+        continue-on-error: false
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --target=${{ matrix.target }} --release
